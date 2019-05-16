@@ -4,7 +4,7 @@
 <https://api.moat.com/docs>
 
 ## Tiles:
-| Tile Name | Tild ID|
+| Tile Name | Tile ID|
 |---|---|
 | Essence Digital - Google Video NA 2015 to Present | id: 2698|
 | Essence Digital - Google NA 2015 to Present | id: 2506|
