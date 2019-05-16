@@ -1,7 +1,6 @@
 """
 TODO:
-- Function to load metrics config JSON
-- Figure out how to handle Tiles and their tile types
+- Write method to write arbitary data to bq
 - Try/Fail Logic
 - Synchronous?
 """
@@ -16,7 +15,7 @@ import sys
 from time import sleep
 import pandas as pd
 
-TOKEN = os.environ['MOAT_TOKEN']
+TOKEN = os.environ['MOAT_TOKEN'] ## add error handling if token isn't present
 
 with open("moat_config.json", encoding='utf-8') as data_file:
         config = json.loads(data_file.read())
@@ -39,15 +38,6 @@ if args.startdate:
     END_DATE = args.enddate
 else:
     START_DATE = END_DATE = (datetime.datetime.today()-datetime.timedelta(days=1)).strftime('%Y-%m-%d')
-
-with open('moat_config.json', encoding='utf-8') as data_file:
-        config = json.loads(data_file.read())
-
-with open('config.json', encoding='utf-8') as data_file:
-        db_creds = json.loads(data_file.read())
-
-
-dimensions = config['request_dimensions']
 """
 
 moat_metrics = config['metrics']
@@ -55,14 +45,14 @@ moat_tiles = config['tiles']
 
 def build_query(level1Id,brandId,tile_type):
     metrics = moat_metrics[tile_type]        
-    START_DATE = 20190512
-    END_DATE = START_DATE
+    start_date = 20190512
+    end_date = start_date
     metrics  = metrics + ["level1","level2","Level3"]
     
     query = {
     'metrics': ','.join(metrics),
-    'start': START_DATE,
-    'end': END_DATE,
+    'start': start_date,
+    'end': end_date,
     'brandId':brandId, ## this is the tile ID 
     'level1Id':level1Id ## this is the campaign
     }   
@@ -89,14 +79,5 @@ def main():
     df = pd.DataFrame(r.get('results').get('details'))
     return df
 
-def test():
-    print("Lets Go Dude")
-    query = build_query(22443077,2698,"vid_metrics")
-    resp = moat_req(TOKEN,query)
-    r = resp.json()
-    df = pd.DataFrame(r.get('results').get('details'))
-    return df
-
-
 if __name__ == "__main__":
-    test()
+    main()
