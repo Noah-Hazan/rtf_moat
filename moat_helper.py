@@ -5,40 +5,21 @@ TODO:
 - Synchronous?
 """
 
-import argparse
 import datetime
 import json
-import logging
 import os
 import requests
 import sys
 from time import sleep
-import pandas as pd
 
+## Load Token from GCS or Environment Variable
 TOKEN = os.environ['MOAT_TOKEN'] ## add error handling if token isn't present
 
-with open("moat_config.json", encoding='utf-8') as data_file:
+## Load path to Config file
+## config_path = models.Variables.get("path_to_moat_config")
+
+with open("moat_config_pixel.json", encoding='utf-8') as data_file:
         config = json.loads(data_file.read())
-
-"""
-logging.basicConfig(level=logging.INFO)
-
-parser = argparse.ArgumentParser(description='Update Moat')
-
-parser.add_argument('-s','--startdate',type=str, help='YYYY-MM-DD')
-parser.add_argument('-e','--enddate',type=str, help='YYYY-MM-DD')
-parser.add_argument('-p','--prod', help='send to prod database (cloud)',action='store_true')
-
-args = parser.parse_args()
-
-logging.debug(args)
-
-if args.startdate:
-    START_DATE = args.startdate
-    END_DATE = args.enddate
-else:
-    START_DATE = END_DATE = (datetime.datetime.today()-datetime.timedelta(days=1)).strftime('%Y-%m-%d')
-"""
 
 moat_metrics = config['metrics']
 moat_tiles = config['tiles']
@@ -61,8 +42,8 @@ def build_query(level1Id,brandId,tile_type):
 
 
 def moat_req(token,query):  
-    auth_header = 'Bearer {}'.format(token)
-    resp = requests.get( 'https://api.moat.com/1/stats.json',
+    auth_header = 'Bearer {}'.format(TOKEN)
+    resp = requests.get('https://api.moat.com/1/stats.json',
                         params=query,
                         headers={'Authorization': auth_header})
     if resp.status_code == 200:
@@ -76,8 +57,8 @@ def main():
     query = build_query(22443077,2698,"vid_metrics")
     resp = moat_req(TOKEN,query)
     r = resp.json()
-    df = pd.DataFrame(r.get('results').get('details'))
-    return df
+    #df = pd.DataFrame(r.get('results').get('details'))
+    return r
 
 if __name__ == "__main__":
     main()

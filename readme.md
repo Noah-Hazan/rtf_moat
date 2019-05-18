@@ -1,7 +1,7 @@
 # MOAT Script
 
 ## Docs:
-<https://api.moat.com/docs>
+<https://api.moat.com/pubdocs>
 
 ## Tiles:
 | Tile Name | Tile ID|
