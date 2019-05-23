@@ -1,14 +1,20 @@
 from airflow import DAG
 from airflow.operators.dummy_operator import DummyOperator
 from airflow.operators.python_operator import PythonOperator
-from airflow import models
-from google.cloud import bigquery
+from airflow.models import Variable
+from google.cloud import bigquery, storage
 import base64
 import logging
 from datetime import datetime, timedelta
 import requests
+import logging
+import json
 
-from moat_helper import build_query, moat_req
+# Load Stuff
+TOKEN = Variable.get('rtf_moat_token')
+
+with open("/home/airflow/gcs/dags/RTF/moat_config_pixel.json") as json_file:
+        config = json.load(json_file)
 
 default_args = {
     'owner': 'kyle.randolph',
@@ -17,19 +23,53 @@ default_args = {
     'email_on_failure': True,
     'email': ['kyle.randolph@essence.global.com'],
     'retries': 1, 
-    'retry_delay': timedelta(minutes=2), 
+    'retry_delay': timedelta(minutes=1),
+    'provide_context':True # this makes xcom work with
 }
 
-# get moat & push GCS -> GCS to CSV -> CSV Import BQ -> Confirm x-fer and delete csv -> Batch Assemble
+dag = DAG('kyle_moat_test_dag',
+            default_args=default_args,
+            description='Test Account Fetch',
+            schedule_interval='@once',
+            start_date=datetime(2018, 3, 20), 
+            catchup=False)
 
-def test_moat_request_task():
+
+## New Plan:
+##  1. upload api resp string to GCS (filename should be passed dynamically
+##  2. Pass file name and location to cleaning task. Task should pull file and transform to newline json and map headers & store
+##  3. Push file into BQ
+##  4. Confirm BQ and del temp
+##  5. Email stats of all events?
+
+def upload_blob(project_id, bucket_name, source, destination_blob_name):
+    """Uploads a file to the bucket."""
+    storage_client = storage.Client(project=project_id)
+    bucket = storage_client.get_bucket(bucket_name)
+    blob = bucket.blob(destination_blob_name)
+
+    blob.upload_from_string(source)
+
+    print('File uploaded to {}.'.format(destination_blob_name))
+
+def test_moat_request_task(**kwargs):
+    #print(config)
     auth_header = 'Bearer {}'.format(TOKEN)
     resp = requests.get('https://api.moat.com/1/account.json',
                         headers={'Authorization': auth_header})
-    print(resp.json())
+
+    print("Try to Upload")
+    resp = upload_blob('essence-analytics-dwh','rtf_temp',resp.text,'test_response.json')
+    
+    return "fuck you kyle it works"
 
 
 # Function below to try imports from helper file
+def pull_xcom(**kwargs):
+    ti = kwargs['ti']
+    msg = ti.xcom_pull(task_ids='moat_accounts') #xcom puller needs to know what downstream task to pull from w/ task_id
+
+    resp = upload_blob('essence-analytics-dwh','rtf_temp',msg,'xcom_text.json')
 
 """
 def moat_request_task(campaign_id,brandId):
@@ -38,17 +78,16 @@ def moat_request_task(campaign_id,brandId):
     print(resp.json)
 """
 
-dag = DAG('kyle_moat_test_dag',
-            default_args=default_args,
-            description='Test Account Fetch',
-            schedule_interval='@once',
-            start_date=datetime(2018, 3, 20), catchup=False)
+
 
 start_task = DummyOperator(task_id="Start", retries=0, dag=dag)
 moat_account_task = PythonOperator(task_id = 'moat_accounts', python_callable = test_moat_request_task, dag = dag)
-end_task = DummyOperator(task_id="End", retries=0, dag=dag)
 
-start_task >> moat_account_task >> end_task
+xcom_pull_task = PythonOperator(task_id = 'puller', python_callable = pull_xcom, dag = dag)
+
+end_task = DummyOperator(task_id= "End", retries=0, dag=dag)
+
+start_task >> moat_account_task >> xcom_pull_task >> end_task
 
 
 
