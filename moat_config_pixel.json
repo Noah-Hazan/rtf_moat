@@ -29,7 +29,6 @@
             "impressions_analyzed",
             "susp_human",
             "human_and_viewable",
-            "inview_3sec_cumulative_perc",
             "player_vis_and_aud_on_complete_sum",
             "player_audible_on_complete_sum",
             "player_visible_on_complete_sum",
@@ -46,7 +45,7 @@
             "impressions_analyzed",
             "susp_human",
             "human_and_viewable",
-            "human_and_avoc",
+            "iva",
             "moat_score"
                     ]
         }
