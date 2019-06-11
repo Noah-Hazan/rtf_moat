@@ -5,6 +5,10 @@
 ##  4. Confirm BQ and del temp
 ##  5. Email stats of all events?
 
+# ToDo:
+# temp folder path should be read from a config file (defined once)
+# when importing class does it read from main global or class file global (token)
+
 from airflow import DAG
 from airflow.operators.dummy_operator import DummyOperator
 from airflow.operators.python_operator import PythonOperator
@@ -69,9 +73,7 @@ def moat_request_task(**context):
                     'rtf_temp',
                     json.dumps(tile.data),
                     filename)
-    return  ## xcom can't hold that large of string
-
-
+    return filename
 
 def upload_blob(project_id, bucket_name, source, destination_blob_name):
     """Uploads a file to the bucket."""
@@ -82,7 +84,6 @@ def upload_blob(project_id, bucket_name, source, destination_blob_name):
     print('File uploaded to {}.'.format(destination_blob_name))
     return
 
-# Function below to try imports from helper file
 def xcom_write(**kwargs):
     ti = kwargs['ti']
     task_id = kwargs['task_id']
@@ -90,7 +91,7 @@ def xcom_write(**kwargs):
     msg = ti.xcom_pull(task_ids=task_id) #xcom puller needs to know what downstream task to pull from w/ task_id
     
 
-# Define DAG
+################ Define DAG ################
 start_task = DummyOperator(task_id="Start", retries=0, dag=dag)
 end_task = DummyOperator(task_id= "End", retries=0, dag=dag)
 
@@ -102,35 +103,11 @@ for tile in tiles:
                                             op_kwargs = args,
                                             dag = dag)
 
+        
+
         write_to_gcs_task = PythonOperator(task_id = task_id + "_gcs",
                                             python_callable = xcom_write, 
                                             op_kwargs = {'task_id':task_id},
                                             dag = dag)
         start_task >> moat_account_task >> write_to_gcs_task >> end_task
 
-
-"""
-campaigns = ["campaign1","campaign2"]
-
-moat_vid_tiles = ["Moat_Video_Tile_" + str(x) for x in range(0,13)]
-
-moat_disp_tiles = ["Moat_Disp_Tile_" + str(x) for x in range(0,5)]
-
-
-for campaign in campaigns:
-    vid_tasks = []
-    disp_tasks = []
-    
-    for tile in moat_vid_tiles:
-        task_name = "dummy_{}_{}".format(campaign,tile)
-        vid_dummy = DummyOperator(task_id=task_name, retries=0, dag=dag)
-        vid_dummy.doc_md = "Writing Vid Tile Data"
-        vid_tasks.append(vid_dummy)
-    for tile in moat_disp_tiles:
-        task_name = "dummy_{}_{}".format(campaign,tile)
-        disp_dummy = DummyOperator(task_id=task_name, retries=0, dag=dag)
-        disp_dummy.doc_md = "Writing Disp Tile Data"
-        disp_tasks.append(disp_dummy)
-    
-    dummy_start >> vid_tasks >> dummy_middle >> disp_tasks >> dummy_end
-"""
