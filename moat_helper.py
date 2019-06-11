@@ -11,12 +11,13 @@ import os
 import json
 from time import sleep
 import logging
+from airflow.models import Variable
 
-TOKEN = os.environ['MOAT_TOKEN']
+TOKEN = Variable.get('rtf_moat_token')
 
 class MoatTile:
-    with open("moat_config_pixel.json", encoding='utf-8') as data_file:
-        config = json.loads(data_file.read())
+    with open("/home/airflow/gcs/dags/RTF/moat_config_pixel.json") as json_file:
+        config = json.load(json_file)
         
     def __init__(self, tile_id, name, campaigns, tile_type, social=None, **kwargs):
         self.brandid = tile_id
@@ -49,7 +50,7 @@ class MoatTile:
         
         for campaign in self.campaigns:
             query[self.campaign_level] = campaign
-            logging.info("Getting Data for {}\n {}-{}".format(x,start_date,end_date))
+            logging.info("Getting Data for {}\n {}-{}".format(campaign,start_date,end_date))
             
             try:
                 resp = requests.get('https://api.moat.com/1/stats.json',

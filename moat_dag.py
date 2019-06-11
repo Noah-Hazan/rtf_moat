@@ -16,7 +16,7 @@ from datetime import datetime, timedelta
 import requests
 import logging
 import json
-import MoatTile from moat_helper
+from RTF.moat_helper import MoatTile
 
 # Load Stuff
 TOKEN = Variable.get('rtf_moat_token')
@@ -25,7 +25,7 @@ with open("/home/airflow/gcs/dags/RTF/moat_config_pixel.json") as json_file:
         config = json.load(json_file)
 
 default_args = {
-    'owner': 'kyle.randolph',
+    'owner': 'Reporting Task Force',
     'depends_on_past': False, 
     'start_date': datetime(2019, 5, 16), 
     'email_on_failure': True,
@@ -35,9 +35,9 @@ default_args = {
     'provide_context':True # this makes xcom work with
 }
 
-dag = DAG('kyle_moat_test_dag',
+dag = DAG('rtf_moat_dag',
             default_args=default_args,
-            description='Test Account Fetch',
+            description='moat_api',
             schedule_interval='@once',
             start_date=datetime(2018, 3, 20), 
             catchup=False)
@@ -61,8 +61,17 @@ def moat_request_task(**context):
     social = context['social']
     tile = MoatTile(tile_id,tile_name,campaign_ids,tile_type,social)
 
-    tile.get_data()
-    return json.dumps(tile.data)
+    tile.get_data('20190505','20190511')
+    
+    filename = tile.name + tile.start_date + '_' + tile.start_date + ".json"
+    if tile.data != []:
+        upload_blob('essence-analytics-dwh', ## store these paths in a config file
+                    'rtf_temp',
+                    json.dumps(tile.data),
+                    filename)
+    return  ## xcom can't hold that large of string
+
+
 
 def upload_blob(project_id, bucket_name, source, destination_blob_name):
     """Uploads a file to the bucket."""
@@ -71,6 +80,7 @@ def upload_blob(project_id, bucket_name, source, destination_blob_name):
     blob = bucket.blob(destination_blob_name)
     blob.upload_from_string(source)
     print('File uploaded to {}.'.format(destination_blob_name))
+    return
 
 # Function below to try imports from helper file
 def xcom_write(**kwargs):
@@ -78,7 +88,7 @@ def xcom_write(**kwargs):
     task_id = kwargs['task_id']
     filename = task_id + ".json"
     msg = ti.xcom_pull(task_ids=task_id) #xcom puller needs to know what downstream task to pull from w/ task_id
-    resp = upload_blob('essence-analytics-dwh','rtf_temp',msg,filename)
+    
 
 # Define DAG
 start_task = DummyOperator(task_id="Start", retries=0, dag=dag)
@@ -86,15 +96,15 @@ end_task = DummyOperator(task_id= "End", retries=0, dag=dag)
 
 for tile in tiles:
         task_id = tile[1] + "_" + str(tile[0])        
-        args = dict(zip(('tile_id','tile_name','campaign_ids','tile_type','social'),tile)
+        args = dict(zip(('tile_id','tile_name','campaign_ids','tile_type','social'),tile))
         moat_account_task = PythonOperator(task_id = task_id, 
-                                            python_callable = moat_task,
-                                            op_kwargs = args
+                                            python_callable = moat_request_task,
+                                            op_kwargs = args,
                                             dag = dag)
 
-        write_to_gcs_task = PythonOperator(task_id = 'puller',
+        write_to_gcs_task = PythonOperator(task_id = task_id + "_gcs",
                                             python_callable = xcom_write, 
-                                            op_kwargs = {'task_id':task_id}
+                                            op_kwargs = {'task_id':task_id},
                                             dag = dag)
         start_task >> moat_account_task >> write_to_gcs_task >> end_task
 
